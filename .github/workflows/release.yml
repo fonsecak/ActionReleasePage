@@ -1,22 +1,42 @@
-name: Criar Release
-on:
+name: Build and Release Package
 
-  workflow_dispatch:
+on:
+  workflow_dispatch:  # executa manualmente no GitHub Actions
+
+permissions:
+  contents: write  # necessário para criar tag e release
 
 jobs:
-  release:
+  build-and-release:
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
 
-      - name: Criar release
-        uses: ncipollo/release-action@v1
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
-          tag: ${{ github.event.inputs.tag }}
-          name: ${{ github.event.inputs.release_name }}
-          body: ${{ github.event.inputs.body }}
-          draft: ${{ github.event.inputs.draft }}
-          prerelease: ${{ github.event.inputs.prerelease }}
+          fetch-depth: 0  # garante que histórico e tags são visíveis
+
+      - name: Create ZIP package
+        run: zip -r release-package.zip . -x '*.git*'
+
+      - name: Configure Git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create and push tag
+        id: create_tag
+        run: |
+          TAG="v$(date +'%Y.%m.%d-%H%M')"
+          echo "TAG=$TAG" >> $GITHUB_ENV
+          git tag "$TAG"
+          git push origin "$TAG"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: "Release ${{ env.TAG }}"
+          files: release-package.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
