@@ -1,42 +1,42 @@
-name: Build and Release Package
+name: Criar Release Package
 
 on:
-  workflow_dispatch:  # executa manualmente no GitHub Actions
-
-permissions:
-  contents: write  # necessário para criar tag e release
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Versão do release (ex.: v1.0.0)"
+        required: true
+        type: string
 
 jobs:
-  build-and-release:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout do repositório
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # garante que histórico e tags são visíveis
 
-      - name: Create ZIP package
-        run: zip -r release-package.zip . -x '*.git*'
-
-      - name: Configure Git user
+      - name: Criar arquivo ZIP do repositório
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          zip -r release-package.zip .
 
-      - name: Create and push tag
-        id: create_tag
-        run: |
-          TAG="v$(date +'%Y.%m.%d-%H%M')"
-          echo "TAG=$TAG" >> $GITHUB_ENV
-          git tag "$TAG"
-          git push origin "$TAG"
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ env.TAG }}
-          name: "Release ${{ env.TAG }}"
-          files: release-package.zip
+      - name: Criar Release no GitHub
+        id: create_release
+        uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.event.inputs.version }}
+          release_name: Release ${{ github.event.inputs.version }}
+          draft: false
+          prerelease: false
+
+      - name: Enviar o ZIP para o Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./release-package.zip
+          asset_name: release-package.zip
+          asset_content_type: application/zip
